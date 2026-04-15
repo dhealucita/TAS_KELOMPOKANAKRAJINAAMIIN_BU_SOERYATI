@@ -205,20 +205,24 @@ function convertGoogleDriveUrl(url) {
 
     const normalizedUrl = url.trim();
 
-    // Google Drive shareable file URL patterns
+    // If it's already lh3.googleusercontent.com format, use it directly
+    if (normalizedUrl.includes('lh3.googleusercontent.com')) {
+        return normalizedUrl;
+    }
+
+    // Extract File ID from various Google Drive URL formats
     const patterns = [
         /\/file\/d\/([a-zA-Z0-9_-]+)\//,
         /[?&]id=([a-zA-Z0-9_-]+)/,
-        /\/d\/([a-zA-Z0-9_-]+)(?:[?#]|$)/,
-        /\/uc\?export=download&id=([a-zA-Z0-9_-]+)/,
-        /\/uc\?export=view&id=([a-zA-Z0-9_-]+)/
+        /\/d\/([a-zA-Z0-9_-]+)(?:[?#]|$)/
     ];
 
     for (const pattern of patterns) {
         const match = normalizedUrl.match(pattern);
         if (match) {
             const fileId = match[1];
-            return `https://drive.google.com/uc?export=view&id=${fileId}`;
+            // Return direct lh3 format that works in img tags
+            return `https://lh3.googleusercontent.com/d/${fileId}`;
         }
     }
 
@@ -235,7 +239,7 @@ function displayHighlights() {
         const imageUrl = convertGoogleDriveUrl(produk.foto_url);
         return `
             <div class="card">
-                <img src="${imageUrl}" alt="${produk.nama_produk}">
+                <img src="${imageUrl}" alt="${produk.nama_produk}" onerror="this.src='${getPlaceholderImage(produk)}'">
                 <div class="category-badge ${categoryClass}">${emoji} ${produk.kategori}</div>
                 <h3>${produk.nama_produk}</h3>
                 <p><strong>Rp ${formatRupiah(produk.harga)}</strong></p>
@@ -280,7 +284,7 @@ function displayProduk() {
             const imageUrl = convertGoogleDriveUrl(produk.foto_url);
             return `
                 <div class="card">
-                    <img src="${imageUrl}" alt="${produk.nama_produk}">
+                    <img src="${imageUrl}" alt="${produk.nama_produk}" onerror="this.src='${getPlaceholderImage(produk)}'">
                     <div class="category-badge ${categoryClass}">${emoji} ${produk.kategori}</div>
                     <h3>${produk.nama_produk}</h3>
                     <p><strong>💰 Rp ${formatRupiah(produk.harga)}</strong></p>
