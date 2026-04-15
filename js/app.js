@@ -3,9 +3,25 @@
 let mitraData = []; // Will be loaded from JSON
 let produkData = []; // Will be loaded from JSON
 
-let currentUser = JSON.parse(localStorage.getItem('kantin_user') || 'null');
-let cart = JSON.parse(localStorage.getItem('kantin_cart') || '[]');
+let currentUser = null;
+let cart = [];
 let pendingProductId = null;
+
+try {
+    const userData = localStorage.getItem('kantin_user');
+    currentUser = userData ? JSON.parse(userData) : null;
+} catch (error) {
+    console.warn('Error parsing user data from localStorage:', error);
+    localStorage.removeItem('kantin_user');
+}
+
+try {
+    const cartData = localStorage.getItem('kantin_cart');
+    cart = cartData ? JSON.parse(cartData) : [];
+} catch (error) {
+    console.warn('Error parsing cart data from localStorage:', error);
+    localStorage.removeItem('kantin_cart');
+}
 
 const navItems = document.querySelectorAll('.nav-item');
 const sections = document.querySelectorAll('.section');
@@ -142,6 +158,13 @@ function getCategoryEmoji(category) {
     return '🍽️';
 }
 
+function getCategoryClass(category) {
+    const categoryLower = category.toLowerCase().trim();
+    if (categoryLower.includes('makanan')) return 'makanan';
+    if (categoryLower.includes('minuman')) return 'minuman';
+    return 'makanan';
+}
+
 function getPlaceholderImage(produk) {
     const category = produk.kategori.toLowerCase().trim();
     const name = encodeURIComponent(produk.nama_produk);
@@ -196,7 +219,7 @@ function displayHighlights() {
             <p>👤 Pemilik: ${mitra.owner_name}</p>
             <p>📧 ${mitra.email}</p>
             <p>🏫 ${mitra.sekolah}</p>
-            <button class="btn btn-secondary" onclick="showSection('mitra')">🔍 Lihat Produk</button>
+            <button class="btn btn-secondary" onclick="showSection('produk')">🔍 Lihat Produk</button>
         </div>
     `).join('');
     highlightMitra.innerHTML = mitraHtml;
@@ -284,7 +307,7 @@ function addToCart(productId) {
 
     saveState();
     updateCartCount();
-    alert(`Berhasil ditambahkan ke keranjang: ${product.nama_produk}`);
+    // Removed alert for better UX - cart count badge will show the update
 }
 
 document.getElementById('login-form').addEventListener('submit', function(event) {
@@ -315,6 +338,12 @@ function initApp() {
     }
     updateCartCount();
     loadProdukData().then(() => {
+        displayHighlights();
+        displayProduk();
+        displayMitra();
+    }).catch((error) => {
+        console.error('Failed to load app data:', error);
+        // Still try to display with fallback data
         displayHighlights();
         displayProduk();
         displayMitra();
