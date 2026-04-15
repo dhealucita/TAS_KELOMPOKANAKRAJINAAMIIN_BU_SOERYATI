@@ -232,10 +232,10 @@ function displayHighlights() {
     const produkHtml = produkData.slice(0, 3).map(produk => {
         const emoji = getCategoryEmoji(produk.kategori);
         const categoryClass = getCategoryClass(produk.kategori);
-        const imageUrl = convertGoogleDriveUrl(produk.foto_url) || getPlaceholderImage(produk);
+        const imageUrl = convertGoogleDriveUrl(produk.foto_url);
         return `
             <div class="card">
-                <img src="${imageUrl}" alt="${produk.nama_produk}" onerror="this.src='${getPlaceholderImage(produk)}'">
+                <img src="${imageUrl}" alt="${produk.nama_produk}">
                 <div class="category-badge ${categoryClass}">${emoji} ${produk.kategori}</div>
                 <h3>${produk.nama_produk}</h3>
                 <p><strong>Rp ${formatRupiah(produk.harga)}</strong></p>
@@ -277,10 +277,10 @@ function displayProduk() {
         const produkHtml = filtered.map(produk => {
             const emoji = getCategoryEmoji(produk.kategori);
             const categoryClass = getCategoryClass(produk.kategori);
-            const imageUrl = convertGoogleDriveUrl(produk.foto_url) || getPlaceholderImage(produk);
+            const imageUrl = convertGoogleDriveUrl(produk.foto_url);
             return `
                 <div class="card">
-                    <img src="${imageUrl}" alt="${produk.nama_produk}" onerror="this.src='${getPlaceholderImage(produk)}'">
+                    <img src="${imageUrl}" alt="${produk.nama_produk}">
                     <div class="category-badge ${categoryClass}">${emoji} ${produk.kategori}</div>
                     <h3>${produk.nama_produk}</h3>
                     <p><strong>💰 Rp ${formatRupiah(produk.harga)}</strong></p>
@@ -397,7 +397,7 @@ async function loadProdukData() {
         // Convert Google Drive URLs to direct image URLs for produk
         produkData = produkDataRaw.map(produk => ({
             ...produk,
-            foto_url: convertGoogleDriveUrl(produk.foto_url) || getPlaceholderImage(produk)
+            foto_url: convertGoogleDriveUrl(produk.foto_url)
         }));
 
         mitraData = mitraDataRaw;
