@@ -101,6 +101,11 @@ function renderCart() {
     let total = 0;
     cartList.innerHTML = cart.map(item => {
         const product = produkData.find(p => p.product_id === item.id);
+        if (!product) {
+            console.warn(`Product with ID ${item.id} not found`);
+            return ''; // Skip this item
+        }
+
         const subtotal = Number(product.harga.replace(/\D/g, '')) * item.qty;
         total += subtotal;
         return `
@@ -140,6 +145,10 @@ function checkoutCart() {
 
     const total = cart.reduce((sum, item) => {
         const product = produkData.find(p => p.product_id === item.id);
+        if (!product) {
+            console.warn(`Product with ID ${item.id} not found during checkout`);
+            return sum; // Skip this item
+        }
         return sum + Number(product.harga.replace(/\D/g, '')) * item.qty;
     }, 0);
 
@@ -167,28 +176,53 @@ function getCategoryClass(category) {
 
 function getPlaceholderImage(produk) {
     const category = produk.kategori.toLowerCase().trim();
-    const name = encodeURIComponent(produk.nama_produk);
-    let bgColor = 'FFE4B5'; // Default light orange
-    let textColor = '8B4513'; // Brown text
+    const name = produk.nama_produk;
+    let bgColor = '#FFE4B5'; // Default light orange
+    let textColor = '#8B4513'; // Brown text
 
     if (category.includes('makanan')) {
-        bgColor = 'FFF8DC'; // Cream
-        textColor = '8B4513'; // Brown
+        bgColor = '#FFF8DC'; // Cream
+        textColor = '#8B4513'; // Brown
     } else if (category.includes('minuman')) {
-        bgColor = 'E0F6FF'; // Light blue
-        textColor = '1E40AF'; // Blue
+        bgColor = '#E0F6FF'; // Light blue
+        textColor = '#1E40AF'; // Blue
     }
 
-    return `https://via.placeholder.com/400x170/${bgColor}/${textColor}?text=${name}`;
+    // Create SVG placeholder inline to avoid external dependencies
+    const svg = `
+        <svg width="400" height="170" xmlns="http://www.w3.org/2000/svg">
+            <rect width="400" height="170" fill="${bgColor}"/>
+            <text x="200" y="85" font-family="Arial, sans-serif" font-size="16" fill="${textColor}" text-anchor="middle" dominant-baseline="middle">${name}</text>
+        </svg>
+    `;
+
+    // Encode SVG as data URL
+    return `data:image/svg+xml;base64,${btoa(svg)}`;
 }
 
 function convertGoogleDriveUrl(url) {
-    // Convert Google Drive share link to direct image link
-    const match = url.match(/\/file\/d\/([a-zA-Z0-9-_]+)\/view/);
-    if (match) {
-        return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+    if (!url || typeof url !== 'string') return url;
+
+    const normalizedUrl = url.trim();
+
+    // Google Drive shareable file URL patterns
+    const patterns = [
+        /\/file\/d\/([a-zA-Z0-9_-]+)\//,
+        /[?&]id=([a-zA-Z0-9_-]+)/,
+        /\/d\/([a-zA-Z0-9_-]+)(?:[?#]|$)/,
+        /\/uc\?export=download&id=([a-zA-Z0-9_-]+)/,
+        /\/uc\?export=view&id=([a-zA-Z0-9_-]+)/
+    ];
+
+    for (const pattern of patterns) {
+        const match = normalizedUrl.match(pattern);
+        if (match) {
+            const fileId = match[1];
+            return `https://drive.google.com/uc?export=view&id=${fileId}`;
+        }
     }
-    return url;
+
+    return normalizedUrl;
 }
 
 function displayHighlights() {
@@ -198,7 +232,7 @@ function displayHighlights() {
     const produkHtml = produkData.slice(0, 3).map(produk => {
         const emoji = getCategoryEmoji(produk.kategori);
         const categoryClass = getCategoryClass(produk.kategori);
-        const imageUrl = convertGoogleDriveUrl(produk.foto_url);
+        const imageUrl = convertGoogleDriveUrl(produk.foto_url) || getPlaceholderImage(produk);
         return `
             <div class="card">
                 <img src="${imageUrl}" alt="${produk.nama_produk}" onerror="this.src='${getPlaceholderImage(produk)}'">
@@ -243,7 +277,7 @@ function displayProduk() {
         const produkHtml = filtered.map(produk => {
             const emoji = getCategoryEmoji(produk.kategori);
             const categoryClass = getCategoryClass(produk.kategori);
-            const imageUrl = convertGoogleDriveUrl(produk.foto_url);
+            const imageUrl = convertGoogleDriveUrl(produk.foto_url) || getPlaceholderImage(produk);
             return `
                 <div class="card">
                     <img src="${imageUrl}" alt="${produk.nama_produk}" onerror="this.src='${getPlaceholderImage(produk)}'">
@@ -353,8 +387,8 @@ function initApp() {
 async function loadProdukData() {
     try {
         const [produkResponse, mitraResponse] = await Promise.all([
-            fetch('../data/tabel_produk_rows.json'),
-            fetch('../data/tabel_mitra_rows.json')
+            fetch('data/tabel_produk_rows.json'),
+            fetch('data/tabel_mitra_rows.json')
         ]);
 
         const produkDataRaw = await produkResponse.json();
@@ -363,7 +397,7 @@ async function loadProdukData() {
         // Convert Google Drive URLs to direct image URLs for produk
         produkData = produkDataRaw.map(produk => ({
             ...produk,
-            foto_url: convertGoogleDriveUrl(produk.foto_url)
+            foto_url: convertGoogleDriveUrl(produk.foto_url) || getPlaceholderImage(produk)
         }));
 
         mitraData = mitraDataRaw;
