@@ -1,15 +1,6 @@
-﻿// app.js for Warung Bu Soeryati
+// app.js for Warung Bu Soeryati
 
-const mitraData = [{
-    mitra_id: '5e281a24-3894-4700-b327-780d9559c834',
-    nama_mitra: 'kantin_bu_soeryati',
-    owner_name: 'bu_soeryati',
-    email: 'novanirmalays@gmail.com',
-    alamat: 'Griyo pabean 2 blok f 32',
-    kategori: 'food & beverage',
-    sekolah: 'SMA HANG TUAH 2 SIDOARJO'
-}];
-
+let mitraData = []; // Will be loaded from JSON
 let produkData = []; // Will be loaded from JSON
 
 let currentUser = JSON.parse(localStorage.getItem('kantin_user') || 'null');
@@ -332,15 +323,23 @@ function initApp() {
 
 async function loadProdukData() {
     try {
-        const response = await fetch('../data/tabel_produk_rows.json');
-        const data = await response.json();
-        // Convert Google Drive URLs to direct image URLs
-        produkData = data.map(produk => ({
+        const [produkResponse, mitraResponse] = await Promise.all([
+            fetch('../data/tabel_produk_rows.json'),
+            fetch('../data/tabel_mitra_rows.json')
+        ]);
+
+        const produkDataRaw = await produkResponse.json();
+        const mitraDataRaw = await mitraResponse.json();
+
+        // Convert Google Drive URLs to direct image URLs for produk
+        produkData = produkDataRaw.map(produk => ({
             ...produk,
             foto_url: convertGoogleDriveUrl(produk.foto_url)
         }));
+
+        mitraData = mitraDataRaw;
     } catch (error) {
-        console.error('Error loading produk data:', error);
+        console.error('Error loading data:', error);
         // Fallback to hardcoded data if JSON fails to load
         produkData = [
             {
@@ -398,6 +397,16 @@ async function loadProdukData() {
                 foto_url: 'https://images.unsplash.com/photo-1517685352821-92cf88aee5a5?auto=format&fit=crop&w=800&q=80'
             }
         ];
+
+        mitraData = [{
+            mitra_id: '5e281a24-3894-4700-b327-780d9559c834',
+            nama_mitra: 'kantin_bu_soeryati',
+            owner_name: 'bu_soeryati',
+            email: 'novanirmalays@gmail.com',
+            alamat: 'Griyo pabean 2 blok f 32',
+            kategori: 'food & beverage',
+            sekolah: 'SMA HANG TUAH 2 SIDOARJO'
+        }];
     }
 }
 
