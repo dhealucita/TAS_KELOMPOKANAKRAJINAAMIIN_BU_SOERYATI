@@ -1,10 +1,11 @@
-// app.js for Warung Bu Soeryati
+// app.js for Kantin Bu Soeryati
 
 let mitraData = []; // Will be loaded from JSON
 let produkData = []; // Will be loaded from JSON
 
 let currentUser = null;
 let cart = [];
+let wishlist = [];
 let pendingProductId = null;
 
 try {
@@ -21,6 +22,14 @@ try {
 } catch (error) {
     console.warn('Error parsing cart data from localStorage:', error);
     localStorage.removeItem('kantin_cart');
+}
+
+try {
+    const wishlistData = localStorage.getItem('kantin_wishlist');
+    wishlist = wishlistData ? JSON.parse(wishlistData) : [];
+} catch (error) {
+    console.warn('Error parsing wishlist data from localStorage:', error);
+    localStorage.removeItem('kantin_wishlist');
 }
 
 const navItems = document.querySelectorAll('.nav-item');
@@ -43,6 +52,7 @@ navItems.forEach(item => {
 function saveState() {
     localStorage.setItem('kantin_user', JSON.stringify(currentUser));
     localStorage.setItem('kantin_cart', JSON.stringify(cart));
+    localStorage.setItem('kantin_wishlist', JSON.stringify(wishlist));
 }
 
 function showSection(sectionId) {
@@ -92,44 +102,118 @@ function closeCartModal() {
 }
 
 function renderCart() {
+    const cartItems = document.getElementById('cart-items');
+    const cartTotalAmount = document.getElementById('cart-total-amount');
+    const cartListModal = document.getElementById('cart-list');
+    const cartTotalModal = document.getElementById('cart-total');
+
     if (!cart.length) {
-        cartList.innerHTML = '<p>Keranjang kosong. Tambahkan menu untuk memesan.</p>';
-        cartTotal.textContent = 'Rp 0';
+        const emptyHtml = '<p>Keranjang kosong. Tambahkan menu untuk memesan.</p>';
+        if (cartItems) cartItems.innerHTML = emptyHtml;
+        if (cartListModal) cartListModal.innerHTML = emptyHtml;
+        if (cartTotalAmount) cartTotalAmount.textContent = 'Rp 0';
+        if (cartTotalModal) cartTotalModal.textContent = 'Rp 0';
         return;
     }
 
     let total = 0;
-    cartList.innerHTML = cart.map(item => {
+    const cartHtml = cart.map(item => {
         const product = produkData.find(p => p.product_id === item.id);
-        if (!product) {
-            console.warn(`Product with ID ${item.id} not found`);
-            return ''; // Skip this item
-        }
+        if (!product) return '';
 
         const subtotal = Number(product.harga.replace(/\D/g, '')) * item.qty;
         total += subtotal;
         return `
             <div class="cart-item">
-                <div class="cart-item-info">
+                <img src="${convertGoogleDriveUrl(product.foto_url)}" alt="${product.nama_produk}" onerror="this.src='${getPlaceholderImage(product)}'">
+                <div class="cart-item-details">
                     <div class="cart-item-title">${product.nama_produk}</div>
-                    <div>${item.qty} x Rp ${formatRupiah(product.harga)}</div>
-                    <div>Subtotal: Rp ${formatRupiah(subtotal)}</div>
+                    <div class="cart-item-price">Rp ${formatRupiah(product.harga)}</div>
                 </div>
-                <div class="cart-item-actions">
-                    <button onclick="removeCartItem('${item.id}')">Hapus</button>
+                <div class="quantity-control">
+                    <button class="quantity-btn" onclick="updateQuantity('${item.id}', ${item.qty - 1})">-</button>
+                    <span>${item.qty}</span>
+                    <button class="quantity-btn" onclick="updateQuantity('${item.id}', ${item.qty + 1})">+</button>
                 </div>
+                <button onclick="removeCartItem('${item.id}')" style="background: none; border: none; color: #FF6B35; cursor: pointer;">🗑️</button>
             </div>
         `;
     }).join('');
 
-    cartTotal.textContent = `Rp ${formatRupiah(total)}`;
+    if (cartItems) cartItems.innerHTML = cartHtml;
+    if (cartListModal) cartListModal.innerHTML = cartHtml;
+    if (cartTotalAmount) cartTotalAmount.textContent = `Rp ${formatRupiah(total)}`;
+    if (cartTotalModal) cartTotalModal.textContent = `Rp ${formatRupiah(total)}`;
 }
 
-function removeCartItem(productId) {
-    cart = cart.filter(item => item.id !== productId);
+function updateQuantity(productId, newQty) {
+    if (newQty <= 0) {
+        removeCartItem(productId);
+        return;
+    }
+
+    const product = produkData.find(p => p.product_id === productId);
+    if (!product) return;
+
+    const maxQty = Number(product.stok) || 1;
+    if (newQty > maxQty) {
+        alert('Stok tidak cukup.');
+        return;
+    }
+
+    const cartItem = cart.find(item => item.id === productId);
+    if (cartItem) {
+        cartItem.qty = newQty;
+        saveState();
+        updateCartCount();
+        renderCart();
+    }
+}
+
+function renderCheckout() {
+    const checkoutItems = document.getElementById('checkout-items');
+    const checkoutTotal = document.getElementById('checkout-total');
+
+    let total = 0;
+    checkoutItems.innerHTML = cart.map(item => {
+        const product = produkData.find(p => p.product_id === item.id);
+        if (!product) return '';
+
+        const subtotal = Number(product.harga.replace(/\D/g, '')) * item.qty;
+        total += subtotal;
+        return `
+            <div class="checkout-item">
+                <span>${product.nama_produk} x ${item.qty}</span>
+                <span>Rp ${formatRupiah(subtotal)}</span>
+            </div>
+        `;
+    }).join('');
+
+    checkoutTotal.textContent = `Rp ${formatRupiah(total)}`;
+}
+
+function placeOrder() {
+    const total = cart.reduce((sum, item) => {
+        const product = produkData.find(p => p.product_id === item.id);
+        return sum + Number(product.harga.replace(/\D/g, '')) * item.qty;
+    }, 0);
+
+    alert(`Terima kasih ${currentUser.name}!\nPesananmu berhasil dibuat dengan total Rp ${formatRupiah(total)}.`);
+    cart = [];
     saveState();
     updateCartCount();
     renderCart();
+    showSection('order-status');
+    // Simulate order progress
+    setTimeout(() => document.getElementById('step-1').classList.add('active'), 1000);
+    setTimeout(() => {
+        document.getElementById('step-1').classList.remove('active');
+        document.getElementById('step-2').classList.add('active');
+    }, 3000);
+    setTimeout(() => {
+        document.getElementById('step-2').classList.remove('active');
+        document.getElementById('step-3').classList.add('active');
+    }, 6000);
 }
 
 function checkoutCart() {
@@ -143,21 +227,9 @@ function checkoutCart() {
         return;
     }
 
-    const total = cart.reduce((sum, item) => {
-        const product = produkData.find(p => p.product_id === item.id);
-        if (!product) {
-            console.warn(`Product with ID ${item.id} not found during checkout`);
-            return sum; // Skip this item
-        }
-        return sum + Number(product.harga.replace(/\D/g, '')) * item.qty;
-    }, 0);
-
-    alert(`Terima kasih ${currentUser.name}!\nPesananmu berhasil dibuat dengan total Rp ${formatRupiah(total)}.`);
-    cart = [];
-    saveState();
-    updateCartCount();
-    renderCart();
     closeCartModal();
+    showSection('checkout');
+    renderCheckout();
 }
 
 function getCategoryEmoji(category) {
@@ -267,38 +339,63 @@ function displayProduk() {
     const produkList = document.getElementById('produk-list');
     const searchInput = document.getElementById('search-produk');
     const filterSelect = document.getElementById('filter-kategori');
+    const sortSelect = document.getElementById('sort-produk');
 
-    function filterProduk() {
+    function filterAndSortProduk() {
         const searchTerm = searchInput.value.toLowerCase();
         const selectedCategory = filterSelect.value;
+        const sortBy = sortSelect.value;
 
-        const filtered = produkData.filter(produk => {
+        let filtered = produkData.filter(produk => {
             const matchesSearch = produk.nama_produk.toLowerCase().includes(searchTerm);
             const matchesCategory = !selectedCategory || produk.kategori.toLowerCase().includes(selectedCategory.toLowerCase());
             return matchesSearch && matchesCategory;
+        });
+
+        // Sort
+        filtered.sort((a, b) => {
+            switch (sortBy) {
+                case 'termurah':
+                    return Number(a.harga.replace(/\D/g, '')) - Number(b.harga.replace(/\D/g, ''));
+                case 'termahal':
+                    return Number(b.harga.replace(/\D/g, '')) - Number(a.harga.replace(/\D/g, ''));
+                case 'terlaris':
+                default:
+                    return (b.rating || 0) - (a.rating || 0);
+            }
         });
 
         const produkHtml = filtered.map(produk => {
             const emoji = getCategoryEmoji(produk.kategori);
             const categoryClass = getCategoryClass(produk.kategori);
             const imageUrl = convertGoogleDriveUrl(produk.foto_url);
+            const rating = produk.rating || 4.5;
+            const isWishlisted = wishlist.includes(produk.product_id);
             return `
                 <div class="card">
                     <img src="${imageUrl}" alt="${produk.nama_produk}" onerror="this.src='${getPlaceholderImage(produk)}'">
+                    <button class="wishlist-btn ${isWishlisted ? 'active' : ''}" onclick="toggleWishlist('${produk.product_id}')">
+                        <i class="fas fa-heart"></i>
+                    </button>
                     <div class="category-badge ${categoryClass}">${emoji} ${produk.kategori}</div>
                     <h3>${produk.nama_produk}</h3>
+                    <div class="product-rating">
+                        <div class="stars">${'★'.repeat(Math.floor(rating))}${'☆'.repeat(5 - Math.floor(rating))}</div>
+                        <span class="rating-text">${rating} (${Math.floor(Math.random() * 100) + 10})</span>
+                    </div>
                     <p><strong>💰 Rp ${formatRupiah(produk.harga)}</strong></p>
                     <p>📦 Stok: ${produk.stok}</p>
-                    <button class="btn btn-primary" onclick="addToCart('${produk.product_id}')">🛒 Masukkan Keranjang</button>
+                    <button class="add-to-cart-btn" onclick="addToCart('${produk.product_id}')">🛒 Tambah ke Keranjang</button>
                 </div>
             `;
         }).join('');
         produkList.innerHTML = produkHtml;
     }
 
-    searchInput.addEventListener('input', filterProduk);
-    filterSelect.addEventListener('change', filterProduk);
-    filterProduk();
+    searchInput.addEventListener('input', filterAndSortProduk);
+    filterSelect.addEventListener('change', filterAndSortProduk);
+    sortSelect.addEventListener('change', filterAndSortProduk);
+    filterAndSortProduk();
 }
 
 function displayMitra() {
@@ -318,6 +415,47 @@ function displayMitra() {
         `;
     }).join('');
     mitraList.innerHTML = mitraHtml;
+}
+
+function displayWishlist() {
+    const wishlistItems = document.getElementById('wishlist-items');
+    const wishlistedProducts = produkData.filter(produk => wishlist.includes(produk.product_id));
+
+    const html = wishlistedProducts.map(produk => {
+        const emoji = getCategoryEmoji(produk.kategori);
+        const categoryClass = getCategoryClass(produk.kategori);
+        const imageUrl = convertGoogleDriveUrl(produk.foto_url);
+        const rating = produk.rating || 4.5;
+        return `
+            <div class="card">
+                <img src="${imageUrl}" alt="${produk.nama_produk}" onerror="this.src='${getPlaceholderImage(produk)}'">
+                <button class="wishlist-btn active" onclick="toggleWishlist('${produk.product_id}')">
+                    <i class="fas fa-heart"></i>
+                </button>
+                <div class="category-badge ${categoryClass}">${emoji} ${produk.kategori}</div>
+                <h3>${produk.nama_produk}</h3>
+                <div class="product-rating">
+                    <div class="stars">${'★'.repeat(Math.floor(rating))}${'☆'.repeat(5 - Math.floor(rating))}</div>
+                    <span class="rating-text">${rating} (${Math.floor(Math.random() * 100) + 10})</span>
+                </div>
+                <p><strong>💰 Rp ${formatRupiah(produk.harga)}</strong></p>
+                <button class="add-to-cart-btn" onclick="addToCart('${produk.product_id}')">🛒 Tambah ke Keranjang</button>
+            </div>
+        `;
+    }).join('');
+    wishlistItems.innerHTML = html || '<p>Belum ada item di wishlist.</p>';
+}
+
+function toggleWishlist(productId) {
+    const index = wishlist.indexOf(productId);
+    if (index > -1) {
+        wishlist.splice(index, 1);
+    } else {
+        wishlist.push(productId);
+    }
+    saveState();
+    displayProduk(); // Re-render to update wishlist buttons
+    displayWishlist();
 }
 
 function addToCart(productId) {
@@ -345,7 +483,7 @@ function addToCart(productId) {
 
     saveState();
     updateCartCount();
-    // Removed alert for better UX - cart count badge will show the update
+    renderCart();
 }
 
 document.getElementById('login-form').addEventListener('submit', function(event) {
@@ -370,21 +508,35 @@ document.getElementById('login-form').addEventListener('submit', function(event)
     }
 });
 
+function logout() {
+    currentUser = null;
+    cart = [];
+    wishlist = [];
+    saveState();
+    updateAccountUI();
+    updateCartCount();
+    showSection('home');
+}
+
 function initApp() {
     if (currentUser) {
         updateAccountUI();
+        document.getElementById('user-name').textContent = currentUser.name;
     }
     updateCartCount();
     loadProdukData().then(() => {
         displayHighlights();
         displayProduk();
         displayMitra();
+        displayWishlist();
+        renderCart();
     }).catch((error) => {
         console.error('Failed to load app data:', error);
-        // Still try to display with fallback data
         displayHighlights();
         displayProduk();
         displayMitra();
+        displayWishlist();
+        renderCart();
     });
 }
 
